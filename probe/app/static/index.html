@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Readpath probe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Nunito Sans stands in for Avenir where Avenir isn't installed. -->
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@200;300;600&display=swap" rel="stylesheet">
+<style>
+/* ObsidianUI-style base: neutral surfaces, hairline borders, muted secondary text, square edges.
+   Colour appears only in corner marks and titles; lanes differ by background tint. */
+:root {
+  --bg: #ffffff; --chrome: #f7f7f7; --ink: #000000; --muted: #636363; --border: #e8e8e8;
+  --green: #1b4d36; --blue: #2c7cab; --err: #b42318;
+  --probe-bg: #f1f6f3; --jit-bg: #eef6fc; --final-bg: #e6f0ea; --err-bg: #fdf1ef;
+  --body: Avenir, "Avenir Next", "Nunito Sans", system-ui, sans-serif;
+  --title: "Times New Roman", Times, serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000; --chrome: #0f0f0f; --ink: #ffffff; --muted: #a3a3a3; --border: #1a1a1a;
+    --green: #86c9a4; --blue: #9dd0f0; --err: #f09483;
+    --probe-bg: #07130d; --jit-bg: #07111a; --final-bg: #0b1c13; --err-bg: #1c0b08;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #000000; --chrome: #0f0f0f; --ink: #ffffff; --muted: #a3a3a3; --border: #1a1a1a;
+  --green: #86c9a4; --blue: #9dd0f0; --err: #f09483;
+  --probe-bg: #07130d; --jit-bg: #07111a; --final-bg: #0b1c13; --err-bg: #1c0b08;
+}
+* { box-sizing: border-box; border-radius: 0 !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 300 16px/1.6 var(--body);
+  -webkit-font-smoothing: antialiased; }
+a, button { transition: color .2s, background-color .2s, border-color .2s; }
+.top { background: var(--chrome); border-bottom: 1px solid var(--border); }
+.top-inner { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between;
+  align-items: center; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+.top .brand { font: 900 19px var(--title); color: var(--green); }
+.top nav { display: flex; gap: 20px; }
+.top a { color: var(--muted); text-decoration: none; }
+.top a:hover { color: var(--ink); }
+main { max-width: 1100px; margin: 0 auto; padding: 28px 16px 64px; }
+h1 { font: 900 2.2rem/1.1 var(--title); margin: 0 0 8px; color: var(--green); }
+.sub { color: var(--ink); margin: 0 0 24px; max-width: 60ch; }
+form { display: flex; gap: 8px; margin-bottom: 20px; }
+textarea { flex: 1; font: inherit; padding: 10px 14px; border: 1px solid var(--border); background: var(--bg);
+  color: var(--ink); resize: vertical; min-height: 48px; }
+textarea:focus { outline: 1px solid var(--muted); outline-offset: 0; }
+button { font: 400 15px var(--body); padding: 0 22px; border: 1px solid var(--ink); background: var(--ink);
+  color: var(--bg); cursor: pointer; }
+button:hover:not(:disabled) { background: var(--green); border-color: var(--green); }
+button:disabled { opacity: .4; cursor: default; }
+.pick { display: flex; flex-direction: column; justify-content: center; gap: 2px; font-size: 11px; color: var(--muted);
+  font-weight: 400; letter-spacing: .06em; text-transform: uppercase; }
+select { font: 400 14px var(--body); color: var(--ink); background: var(--bg); border: 1px solid var(--border);
+  padding: 6px 8px; min-width: 190px; letter-spacing: 0; text-transform: none; }
+@media (max-width: 760px) { form { flex-wrap: wrap; } textarea { flex-basis: 100%; } .pick { flex: 1; } }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+.meta a { color: var(--muted); } .meta a:hover { color: var(--ink); }
+.lanes, .row { display: grid; grid-template-columns: 1fr 220px 1fr; gap: 0 12px; }
+.lanes { position: sticky; top: 0; background: var(--bg); padding: 10px 0 8px; z-index: 1;
+  font: 900 17px var(--title); border-bottom: 1px solid var(--border); }
+.lanes .p { color: var(--green); } .lanes .j { color: var(--blue); text-align: right; }
+.lanes .w { color: var(--muted); text-align: center; font: 300 11px var(--body); letter-spacing: .1em;
+  text-transform: uppercase; align-self: center; }
+.row { margin: 10px 0; align-items: start; }
+/* Square card with L-shaped corner marks drawn in --accent. */
+.card { --accent: var(--muted); --card-bg: var(--bg); min-width: 0; padding: 12px 16px; border: 1px solid var(--border);
+  background:
+    linear-gradient(var(--accent), var(--accent)) top left / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) top left / 2px 12px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) top right / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) top right / 2px 12px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) bottom left / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) bottom left / 2px 12px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) bottom right / 12px 2px no-repeat,
+    linear-gradient(var(--accent), var(--accent)) bottom right / 2px 12px no-repeat,
+    var(--card-bg); }
+.card.probe { grid-column: 1; --accent: var(--green); --card-bg: var(--probe-bg); }
+.card.jit { grid-column: 3; --accent: var(--blue); --card-bg: var(--jit-bg); }
+.card.full { grid-column: 1 / -1; }
+.card.final { --accent: var(--green); --card-bg: var(--final-bg); padding: 16px 20px; }
+.card.error { --accent: var(--err); --card-bg: var(--err-bg); }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 12px;
+  color: var(--muted); margin-bottom: 4px; }
+.head b { font: 900 16px var(--title); color: var(--accent); }
+.card.final .head b { font-size: 21px; }
+.call { font-family: var(--mono); font-size: 13px; background: var(--bg); border: 1px solid var(--border);
+  padding: 2px 6px; display: inline-block; margin: 2px 0; word-break: break-word; }
+.wire { grid-column: 2; align-self: center; font-family: var(--mono); font-size: 12px; text-align: center;
+  min-width: 0; color: var(--muted); }
+.wire .label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wire .arrow { display: block; height: 1px; background: var(--green); position: relative; margin: 5px 0; }
+.wire .arrow::after { content: ""; position: absolute; right: 0; top: -4px; border: 4.5px solid transparent;
+  border-left: 7px solid var(--green); border-right: 0; }
+.wire.back .arrow { background: var(--blue); }
+.wire.back .arrow::after { right: auto; left: 0; border-left: 0; border-right: 7px solid var(--blue); }
+.tag { font-size: 11px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); padding: 0 6px; }
+.tag.hit { color: var(--green); }
+details { margin-top: 6px; } summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+summary:hover { color: var(--ink); }
+pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.45 var(--mono); margin: 6px 0 0;
+  max-height: 320px; overflow: auto; background: var(--bg); border: 1px solid var(--border); padding: 8px; }
+.answer { white-space: pre-wrap; margin: 0; }
+.spin::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px;
+  background: var(--green); animation: s 1s linear infinite; vertical-align: 1px; }
+@keyframes s { to { transform: rotate(360deg); } }
+/* Small secondary text stays readable at a normal weight; body copy stays light. */
+.head, .meta, .wire, summary, .tag, .top nav, .lanes .w { font-weight: 400; }
+.empty { color: var(--ink); text-align: center; padding: 40px 0; }
+@media (max-width: 760px) {
+  h1 { font-size: 1.7rem; }
+  .lanes { display: none; }
+  .row { grid-template-columns: 1fr; gap: 6px; }
+  .card.probe, .card.jit, .wire, .card.full { grid-column: 1; }
+  .card.jit { margin-left: 24px; }
+  .wire { text-align: left; }
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-inner">
+  <span class="brand">Readpath</span>
+  <nav>
+    <a href="https://github.com/LaumerLoma/readpath" target="_blank" rel="noopener">GitHub repo ↗</a>
+    <a href="https://laumerloma.github.io/readpath/" target="_blank" rel="noopener">Interactive example ↗</a>
+  </nav>
+</div></header>
+<main>
+  <h1>Research probe</h1>
+  <p class="sub">Ask a question in plain language. The probe's LLM turns it into requests to the JIT server; every step appears below.</p>
+  <form id="f">
+    <textarea id="q" rows="2" required placeholder="e.g. Which heat-pump installers in Zurich are certified, and what do they charge?"></textarea>
+    <label class="pick"><span>Probe model</span><select id="model"></select></label>
+    <button id="go" type="submit">Run probe</button>
+  </form>
+  <div class="meta" id="meta"></div>
+  <div class="lanes"><span class="p">Probe · LLM agent</span><span class="w">HTTP</span><span class="j">JIT server</span></div>
+  <div id="timeline"><p class="empty">No run yet.</p></div>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const timeline = $("#timeline");
+let source = null, pending = null, lastJit = null;
+
+function el(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const secs = (ms) => (ms / 1000).toFixed(1) + "s";
+function row(...children) { const r = el("div", "row"); children.forEach((c) => r.append(c)); timeline.append(r); r.scrollIntoView({ block: "nearest", behavior: "smooth" }); return r; }
+function details(label, text) { return `<details><summary>${esc(label)}</summary><pre>${esc(text)}</pre></details>`; }
+function pretty(text) { try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; } }
+function args(text) {
+  try { return Object.entries(JSON.parse(text || "{}")).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(", "); }
+  catch { return text; }
+}
+function path(url) { try { const u = new URL(url); return u.pathname + (u.search ? decodeURIComponent(u.search) : ""); } catch { return url; } }
+
+const handlers = {
+  start(e) {
+    timeline.innerHTML = "";
+    $("#meta").innerHTML = `<span>Model <code>${esc(e.model)}</code></span><span>Session <code>${esc(e.session_id)}</code></span>` +
+      `<a href="${esc(e.trace_url)}" target="_blank" rel="noopener">Open this session in the JIT trace ↗</a>`;
+    row(el("div", "card probe", `<div class="head"><b>User question</b></div>${esc(e.question)}`));
+  },
+  llm_request(e) {
+    pending = el("div", "card probe", `<div class="head"><b>Step ${e.step}</b></div><span class="spin">LLM is deciding what to do…</span>`);
+    row(pending);
+  },
+  llm_response(e) {
+    const card = pending || row(el("div", "card probe")).firstChild;
+    pending = null;
+    const calls = e.tool_calls.map((c) => `<span class="call">${esc(c.name)}(${esc(args(c.arguments))})</span>`).join("<br>");
+    card.innerHTML = `<div class="head"><b>Step ${e.step}</b><span>LLM · ${secs(e.ms)}</span></div>` +
+      (calls ? `Calls ${calls}` : "Writes the final report") +
+      (e.content && calls ? `<p class="answer">${esc(e.content)}</p>` : "") +
+      (e.reasoning ? details("Reasoning", e.reasoning) : "");
+  },
+  tool_call() { lastJit = null; },
+  http(e) {
+    const req = el("div", "wire", `<span class="label" title="${esc(e.url)}">${esc(e.method)} ${esc(path(e.url))}</span><span class="arrow"></span>`);
+    const cache = e.cache ? ` <span class="tag ${e.cache === "hit" ? "hit" : ""}">cache ${esc(e.cache)}</span>` : "";
+    lastJit = el("div", "card jit", `<div class="head"><b>${esc(e.method)} ${esc(path(e.url).split("?")[0])}</b><span>${e.status} · ${secs(e.ms)}</span></div>` +
+      `Responded${cache}` + (e.request_body ? details("Request body", JSON.stringify(e.request_body, null, 2)) : ""));
+    row(el("div"), req, lastJit);
+    row(el("div"), el("div", "wire back", `<span class="arrow"></span><span class="label">${e.status} response</span>`));
+  },
+  tool_result(e) {
+    if (lastJit) { lastJit.insertAdjacentHTML("beforeend", details("Response the probe received", pretty(e.content))); return; }
+    row(el("div", "card probe", `<div class="head"><b>${esc(e.name)}</b><span>no request sent</span></div>${esc(pretty(e.content))}`));
+  },
+  final(e) {
+    row(el("div", "card full final", `<div class="head"><b>Final report</b><span>${e.steps} step(s) · ${secs(e.total_ms)}</span></div><p class="answer">${esc(e.answer)}</p>`));
+  },
+  error(e) {
+    if (pending) { pending.remove(); pending = null; }
+    row(el("div", "card full error", `<div class="head"><b>Error</b></div>${esc(e.message)}`));
+  },
+};
+
+$("#f").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const q = $("#q").value.trim();
+  if (!q) return;
+  if (source) source.close();
+  $("#go").disabled = true;
+  timeline.innerHTML = "";
+  source = new EventSource("/run?q=" + encodeURIComponent(q) + "&model=" + encodeURIComponent($("#model").value));
+  source.onmessage = (m) => { const e = JSON.parse(m.data); (handlers[e.type] || (() => {}))(e); };
+  const stop = () => { source.close(); $("#go").disabled = false; };
+  source.addEventListener("done", stop);
+  source.onerror = () => { if (pending) handlers.error({ message: "Connection to the probe was lost." }); stop(); };
+});
+fetch("/models").then((r) => r.json()).then(({ default: fallback, models }) => {
+  $("#model").innerHTML = models.map((m) => `<option ${m === fallback ? "selected" : ""}>${esc(m)}</option>`).join("");
+});
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#f").requestSubmit(); } });
+</script>
+</body>
+</html>

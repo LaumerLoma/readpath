@@ -1,0 +1,37 @@
+# Two separate containers: the probe (upstream agent) and the JIT server it queries.
+# Settings come from ./.env; see .env.example.
+services:
+  jit:
+    build: ./jit
+    ports: ["8766:8766"]
+    environment:
+      LLM_BASE_URL: ${JIT_LLM_BASE_URL:-${LLM_BASE_URL:-}}
+      LLM_MODEL: ${JIT_LLM_MODEL:-${LLM_MODEL:-}}
+      LLM_API_KEY: ${JIT_LLM_API_KEY:-${LLM_API_KEY:-}}
+      LLM_REASONING_EFFORT: ${JIT_LLM_REASONING_EFFORT:-}
+      JIT_REQUEST_TIMEOUT_SECONDS: ${JIT_REQUEST_TIMEOUT_SECONDS:-300}
+    volumes: ["jit-data:/data"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8766/health')"]
+      interval: 5s
+      retries: 10
+
+  probe:
+    build: ./probe
+    ports: ["8767:8767"]
+    environment:
+      LLM_BASE_URL: ${PROBE_LLM_BASE_URL:-${LLM_BASE_URL:-}}
+      LLM_MODEL: ${PROBE_LLM_MODEL:-${LLM_MODEL:-}}
+      LLM_API_KEY: ${PROBE_LLM_API_KEY:-${LLM_API_KEY:-}}
+      JIT_BASE_URL: http://jit:8766
+      JIT_PUBLIC_URL: http://localhost:8766
+      PROBE_MAX_STEPS: ${PROBE_MAX_STEPS:-8}
+      PROBE_MODELS: ${PROBE_MODELS:-}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      jit:
+        condition: service_healthy
+
+volumes:
+  jit-data:
